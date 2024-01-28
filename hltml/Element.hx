@@ -15,6 +15,9 @@
  */
 package hltml;
 
+class HTMLElement extends h2d.Flow implements h2d.domkit.Object {
+}
+
 class ElementClassList {
 	var elt : Element;
 	public function new(elt) {
@@ -33,40 +36,26 @@ class ElementClassList {
 @:allow(hltml.Window)
 class Element {
 
-	static var UID = 0;
 	static var window(get,never) : Window;
-
 	public var nodeName(default, null) : String;
 	public var nodeValue(default, null) : String;
 	public var numChildren(get, never) : Int;
-	var id : Int;
-	var attributes : Array<{ name : String, value : String }>;
-	var classes : Array<String>;
+	var element : HTMLElement;
+	var attributes : Array<{ name : String, value : String }> = [];
 	var parent(default,set) : Null<Element>;
-	var childs : Array<Element>;
-	var events : Array<{ id : Int, name : String, callb : Event -> Void }>;
-	var style : Array<{ name : String, value : String }>;
+	var children : Array<Element> = [];
 	var clientID(default, set) : String;
+	var dom(get,never) : domkit.Properties<h2d.Object>;
 	public var parentElement(get,never) : Element;
 
-	public function new() {
-		id = UID++;
-		@:privateAccess window.elements.set(id, this);
-		events = [];
-		attributes = [];
-		classes = [];
-		childs = [];
-		style = [];
+	function new() {
 	}
 
 	static inline function get_window() return @:privateAccess Window.inst;
 
-	inline function get_numChildren() return childs.length;
+	inline function get_numChildren() return children.length;
 	inline function get_parentElement() return parent;
-
-	inline function send(msg) {
-		if( id >= 0 ) window.send(msg);
-	}
+	inline function get_dom() return element.dom;
 
 	@:access(hltml.Window)
 	function set_clientID(id) {
@@ -95,133 +84,47 @@ class Element {
 			pchck = pchck.parent;
 		}
 
-		if( parent != null ) parent.childs.remove(this);
+		if( parent != null ) parent.children.remove(this);
 		if( p != null ) {
-			if( id < 0 ) throw "Can't add disposed node";
-			if( p.id < 0 ) throw "Can't add to a disposed node";
-			p.childs.push(this);
-		}
+			p.children.push(this);
+			p.element.addChild(element);
+		} else
+			element.remove();
 
 		parent = p;
 
 		var id = getAttr("id");
 		if( id != null )
-			clientID = onStage() ? id : null;
+			clientID = @:privateAccess element.allocated ? id : null;
 
 		return p;
 	}
 
-	public function reset() {
-		if( (nodeName != null || nodeValue == "") && childs.length == 0 )
-			return;
-		send(Reset(id));
-		if( nodeName == null )
-			nodeValue = "";
-		var cold = childs;
-		childs = [];
-		for( c in cold )
-			c.dispose();
-	}
-
-	public function dispose() {
-		if( id < 0 ) return;
-		parent = null;
-		if( nodeName != null ) nodeValue = "";
-		@:privateAccess window.elements.remove(id);
-		send(Dispose(id, events.length == 0 ? null : [for( e in events ) e.id]));
-		id = -12345678;
-		if( events.length > 0 ) events = [];
-		var cold = childs;
-		childs = [];
-		for( c in cold )
-			c.dispose();
+	public function clear() {
+		while( numChildren > 0 )
+			children[0].remove();
 	}
 
 	public function remove() {
-		if( id < 0 ) return;
-		send(Remove(id));
 		if( parent != null ) {
-			parent.childs.remove(this);
+			parent.children.remove(this);
 			parent = null;
 		}
-	}
-
-	public function countRec() {
-		var n = 1;
-		for( c in childs )
-			n += c.countRec();
-		return n;
+		element.remove();
 	}
 
 	public function unbindEvents( rec = false ) {
-		if( events.length > 0 ) {
-			send(Unbind([for( e in events ) e.id]));
-			events = [];
-		}
-		if( rec )
-			for( e in childs )
+		if( rec ) {
+			for( e in children )
 				e.unbindEvents(true);
+		}
 	}
 
 	function bindEvent( event : String, callb : Event -> Void ) {
-		var eid = window.allocEvent(callb);
-		events.push( { id : eid, name : event, callb : callb } );
-		send(Event(id, event, eid));
 	}
 
 	function unbindEvent( name : String ) {
-		for( s in events )
-			if( s.name == name ) {
-				events.remove(s);
-				send(Unbind([s.id]));
-				return;
-			}
 	}
-
-	public function getStyle( name : String ) {
-		for( s in style )
-			if( s.name == name )
-				return s.value;
-		return null;
-	}
-
-	function updatedClasses() {
-		var classAttr = classes.length == 0 ? null : classes.join(" ");
-		for( a in attributes )
-			if( a.name == "class" ) {
-				if( classAttr == null )
-					attributes.remove(a);
-				else
-					a.value = classAttr;
-				return;
-			}
-		if( classAttr != null )
-			attributes.push( { name : "class", value : classAttr } );
-	}
-
-	function setStyle( name : String, value : String ) {
-		for( s in style )
-			if( s.name == name ) {
-				if( value == null )
-					style.remove(s);
-				else
-					s.value = value;
-				value = null;
-				break;
-			}
-		if( value != null )
-			style.push( { name : name, value : value } );
-
-		// sync attribute
-		var styleAttr = [for( s in style ) s.name+" : " + s.value].join(";");
-		for( a in attributes )
-			if( a.name == "style" ) {
-				a.value = styleAttr;
-				return;
-			}
-		attributes.push( { name : "style", value : styleAttr } );
-	}
-
 
 	public function getAttr( name : String ) {
 		for( a in attributes )
@@ -230,48 +133,54 @@ class Element {
 		return null;
 	}
 
-	function onStage() {
-		var p = this;
-		var root = window.getRoot();
-		while( p != null ) {
-			if( p == root ) return true;
-			p = p.parent;
-		}
-		return false;
-	}
+	static var unknownAttrs : Map<String,Bool> = [];
 
-	// should only be called by JQuery ! (don't send messsage)
-	function setAttr( name : String, value : String)  {
-
-		switch( name ) {
-		case "class":
-			classes = value == null ? [] : value.split(" ");
-		case "style":
-			style = [];
-			if( value != null )
-				for( pair in value.split(";") ) {
-					var parts = pair.split(":");
-					if( parts.length != 2 ) continue;
-					style.push({ name : StringTools.trim(parts[0]), value : StringTools.trim(parts[1]) });
-				}
-		case "id":
-			if( onStage() )
-				clientID = value;
-		case "dock":
-			send(Special(id, "dock", []));
-		default:
-		}
-
+	function setAttr( name : String, value : String ) {
+		var found = false;
 		for( a in attributes )
 			if( a.name == name ) {
 				if( value == null )
 					attributes.remove(a);
 				else
 					a.value = value;
-				return;
+				found = true;
+				break;
 			}
-		if( value != null )
-			attributes.push( { name: name, value:value } );
+		if( !found && value != null )
+			attributes.push({ name : name, value : value });
+
+		switch( name ) {
+		case "name":
+			element.name = name;
+		case "class":
+			dom.setClasses(value);
+		case "href" if( value == "#" ):
+			// ignore
+		default:
+			if( !unknownAttrs.exists(name) ) {
+				unknownAttrs.set(name, true);
+				trace("Unknown attribute "+name+"="+value);
+			}
+		}
+	}
+
+	function getStyle( st : String ) : String {
+		return switch( st ) {
+		case "display":
+			element.visible ? "" : "none";
+		default:
+			trace(nodeName, st);
+			null;
+		}
+	}
+
+	function setStyle( st : String, v : String ) {
+		switch( st ) {
+		case "display":
+			element.visible = v != "none";
+		default:
+			trace(nodeName, st, v);
+		}
 	}
 
 	// ---- HTML API ---
@@ -286,7 +195,6 @@ class Element {
 
 	public var oncontextmenu(default,set) : Event -> Void;
 
-
 	function get_offsetHeight() {
 		return 0;
 	}
@@ -298,10 +206,11 @@ class Element {
 	}
 
 	function get_className() {
-		return "";
+		return [for( c in element.dom.getClasses() ) c.toString()].join(" ");
 	}
 
 	function set_className(v:String) {
+		setAttr("class", v);
 		return v;
 	}
 
@@ -319,14 +228,16 @@ class Element {
 		bindEvent(event, callb);
 	}
 
-	public function removeAttribute( str : String ) {
+	public function removeAttribute( attr : String ) {
+		setAttr(attr, null);
 	}
 
 	public function appendChild( e : Element ) {
+		if( e != null ) e.parent = this;
 	}
 
 	function set_innerHTML(v:String) {
-		reset();
+		clear();
 		new JQuery(v).appendTo(new JQuery(this));
 		return v;
 	}
@@ -336,8 +247,9 @@ class Element {
 	}
 
 	function set_textContent(v:String) {
-		reset();
+		clear();
 		nodeValue = v;
+		createText(v, this);
 		return v;
 	}
 
@@ -360,7 +272,7 @@ class Element {
 
 	public static function createHTML( str : String ) {
 		if( ~/^<[A-Za-z]+>$/.match(str) )
-			return window.createElement(str.substr(1,str.length-2));
+			return create(str.substr(1,str.length-2));
 		if( str.charCodeAt(str.length-1) == ">".code && str.charCodeAt(str.length-2) == '"'.code )
 			str = str.substr(0,str.length-1)+"/>";
 		var x = try Xml.parse(str) catch( e : Dynamic ) throw "Invalid XML "+str;
@@ -375,28 +287,36 @@ class Element {
 				d = createXML(x, parent);
 			return d;
 		case Element:
-			var e = new Element();
+			var e = create(x.nodeName);
 			e.nodeName = x.nodeName;
 			for( a in x.attributes() )
 				e.setAttr(a, x.get(a));
-			window.send(Create(e.id, e.nodeName, e.attributes));
-			if( parent != null ) {
+			if( parent != null )
 				e.parent = parent;
-				window.send(Append(e.id, parent.id));
-			}
 			for( x in x )
 				createXML(x, e);
 			return e;
 		case PCData, CData:
-			var e = new Element();
-			e.nodeValue = x.nodeValue;
-			e.parent = parent;
-			window.send(CreateText(e.id, e.nodeValue, parent == null ? -1 : parent.id));
-			return e;
+			createText(x.nodeValue, parent);
+			return null;
 		case ProcessingInstruction, DocType, Comment:
 			// nothing
 			return null;
 		}
+	}
+
+	public static function createText( text : String, parent : Element ) {
+		var t = new h2d.HtmlText(hxd.res.DefaultFont.get(), parent.element);
+		t.dom = domkit.Properties.create("html-text", t);
+		t.text = text;
+		return t;
+	}
+
+	public static function create( name : String ) {
+		var e = new Element();
+		e.nodeName = name;
+		e.element = new HTMLElement();
+		return e;
 	}
 
 }

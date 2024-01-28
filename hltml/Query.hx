@@ -97,7 +97,7 @@ class Query {
 		}
 		if( classes != null ) {
 			for( c in classes ) {
-				if( e.classes.indexOf(c) < 0 )
+				if( !e.dom.hasClass(c) )
 					return false;
 			}
 		}

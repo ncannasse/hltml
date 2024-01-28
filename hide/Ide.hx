@@ -35,8 +35,8 @@ class Ide extends hide.tools.IdeData {
 		throw msg;
 	}
 
-	public function createElement( kind : String ) : Element.HTMLElement {
-		return window.createElement(kind);
+	public function createElement( kind : String ) {
+		return hltml.Element.create(kind);
 	}
 
 	public function setClipboard( str : String ) {

@@ -19,11 +19,13 @@ package hltml;
 abstract JQueryOrString(JQuery) from JQuery to JQuery {
 	@:from static function fromString(s:String) : JQueryOrString {
 		var jq = new JQuery();
-		@:privateAccess jq.strPayload = s;
+		var e = new Element();
+		e.nodeValue = s;
+		@:privateAccess jq.sel.push(e);
 		return jq;
 	}
 	@:to function to() : String {
-		return this == null ? null : @:privateAccess this.strPayload;
+		return this == null ? null : @:privateAccess this.sel[0].nodeValue;
 	}
 
 }
@@ -34,7 +36,6 @@ abstract AttributeValue(Dynamic) from Int from String {
 class JQuery {
 
 	var sel : Array<Element>;
-	var strPayload : String;
 	public var length(get, never) : Int;
 
 	public function new(?elt:Element,?query:String) {
@@ -72,27 +73,20 @@ class JQuery {
 	}
 
 	public function hasClass( name : String ) {
-		var d = get();
-		return d == null ? false : d.classes.indexOf(name) >= 0;
+		var e = get();
+		return e == null ? false : e.dom.hasClass(name);
 	}
 
 	public function addClass( name : String ) {
 		for( s in sel )
-			if( s.classes.indexOf(name) < 0 ) {
-				s.classes.push(name);
-				s.updatedClasses();
-				send(AddClass(s.id, name));
-			}
+			s.dom.addClass(name);
 		return this;
 	}
 
 	public function text( t : String ) {
 		for( s in sel ) {
-			s.reset();
-			var e = new Element();
-			e.nodeValue = t;
-			e.parent = s;
-			send(CreateText(e.id, t, s.id));
+			s.clear();
+			s.textContent = t;
 		}
 		return this;
 	}
@@ -100,8 +94,8 @@ class JQuery {
 	public function html( html : String ) {
 		var x = try Xml.parse(html) catch( e : Dynamic ) throw "Failed to parse " + html + "(" + e+")";
 		for( s in sel ) {
-			s.reset();
-			Element.createXML(x,s);
+			s.clear();
+			if( html.length > 0 ) Element.createXML(x,s);
 		}
 		return this;
 	}
@@ -162,16 +156,12 @@ class JQuery {
 	}
 
 	public function trigger( event : String ) {
-		for( s in sel )
-			send(Trigger(s.id, event));
 	}
 
 	public function val( value : Dynamic ) {
 		var vstr = value == null ? null : "" + value;
-		for( s in sel ) {
-			send(SetVal(s.id, value));
+		for( s in sel )
 			s.setAttr("value", vstr);
-		}
 		return this;
 	}
 
@@ -181,42 +171,14 @@ class JQuery {
 		return get().getAttr("value");
 	}
 
-	public function scrollIntoView() {
-		return special("scrollIntoView",[]);
-	}
-
-	function special( name : String, args : Array<Dynamic>, ?result : Dynamic -> Bool ) {
-		for( s in sel ) {
-			var id : Null<Int> = null;
-			if( result != null ) {
-				var window = @:privateAccess Window.inst;
-				id = window.allocEvent(function(e) {
-					if( result(e.value) ) {
-						@:privateAccess window.events.remove(id);
-						send(Unbind([id]));
-					}
-				});
-			}
-			send(Special(s.id, name, args, id));
-		}
-		return this;
-	}
-
 	public function on( event : String, e : Event -> Void ) {
 		for( s in sel )
 			s.bindEvent(event, e);
 	}
 
 	public function off( ?event : String ) {
-		var eids = [];
 		for( s in sel ) {
-			for( e in s.events.copy() )
-				if( event == null || e.name == event ) {
-					s.events.remove(e);
-					eids.push(e.id);
-				}
 		}
-		if( eids.length > 0 ) send(Unbind(eids));
 		return this;
 	}
 
@@ -280,12 +242,12 @@ class JQuery {
 		var j = new JQuery();
 		if( query == null ) {
 			for( s in sel )
-				for( c in s.childs )
+				for( c in s.children )
 					j.sel.push(c);
 		} else {
 			var q = new Query(query);
 			for( s in sel )
-				for( c in s.childs )
+				for( c in s.children )
 					if( q.match(c) )
 						j.sel.push(c);
 		}
@@ -295,7 +257,7 @@ class JQuery {
 	function addRec( q : Query, e : Element ) {
 		if( q.match(e) )
 			sel.push(e);
-		for( e in e.childs )
+		for( e in e.children )
 			addRec(q, e);
 	}
 
@@ -307,10 +269,8 @@ class JQuery {
 	public function appendTo( j : JQuery ) {
 		var p = j.sel[0];
 		if( p != null )
-			for( s in sel ) {
+			for( s in sel )
 				s.parent = p;
-				send(Append(s.id, p.id));
-			}
 		return this;
 	}
 
@@ -324,9 +284,9 @@ class JQuery {
 		if( p != null )
 			for( s in sel ) {
 				s.parent = p;
-				s.parent.childs.remove(s);
-				s.parent.childs.unshift(s);
-				send(InsertAt(s.id, p.id, 0));
+				s.parent.children.remove(s);
+				s.parent.children.unshift(s);
+				s.parent.element.addChildAt(s.element, 0);
 			}
 		return this;
 	}
@@ -341,21 +301,17 @@ class JQuery {
 		if( e != null ) {
 			var p = e.parent;
 			if( p != null ) {
-				var pos = p.childs.indexOf(e) + 1;
+				var pos = p.children.indexOf(e) + 1;
 				for( s in sel ) {
 					s.parent = p;
-					p.childs.remove(s);
-					p.childs.insert(pos, s);
-					send(InsertAt(s.id, p.id, pos));
+					p.children.remove(s);
+					p.children.insert(pos, s);
+					p.element.addChildAt(s.element, pos);
 					pos++;
 				}
 			}
 		}
 		return this;
-	}
-
-	inline function send( msg : Message ) {
-		@:privateAccess Window.inst.send(msg);
 	}
 
 	public function attr( a : String, ?val : AttributeValue ) : JQueryOrString {
@@ -369,10 +325,8 @@ class JQuery {
 			return null;
 		}
 		var val = Std.string(val);
-		for( s in sel ) {
-			send(SetAttr(s.id, a, val));
+		for( s in sel )
 			s.setAttr(a, val);
-		}
 		return this;
 	}
 
@@ -387,7 +341,6 @@ class JQuery {
 	public function removeAttr( a : String ) {
 		for( s in sel ) {
 			if( s.getAttr(a) == null ) continue;
-			send(SetAttr(s.id, a, null));
 			s.setAttr(a, null);
 		}
 		return this;
@@ -403,19 +356,11 @@ class JQuery {
 		if( val == null ) {
 			if( sel.length == 0 )
 				return null;
-			return get().getStyle(s);
+			return sel[0].getStyle(s);
 		}
-		for( d in sel ) {
+		for( d in sel )
 			d.setStyle(s, val);
-			send(SetStyle(d.id, s, val));
-		}
 		return val;
-	}
-
-	public function dispose() {
-		for( s in sel )
-			s.dispose();
-		sel = [];
 	}
 
 	public function remove() {
@@ -434,36 +379,13 @@ class JQuery {
 
 	public function removeClass( name : String ) {
 		for( s in sel )
-			if( s.classes.remove(name) ) {
-				s.updatedClasses();
-				s.send(RemoveClass(s.id, name));
-			}
-		return this;
-	}
-
-	public function slideToggle( ?duration : Float ) {
-		for( s in sel )
-			s.send(Anim(s.id, "slideToggle", duration));
+			s.dom.removeClass(name);
 		return this;
 	}
 
 	public function toggleClass( name : String, ?state ) {
-		if( state != null ) {
-			if( state )
-				addClass(name);
-			else
-				removeClass(name);
-		} else {
-			for( s in sel )
-				if( !s.classes.remove(name) ) {
-					s.updatedClasses();
-					s.classes.push(name);
-					s.send(AddClass(s.id, name));
-				} else {
-					s.updatedClasses();
-					s.send(RemoveClass(s.id, name));
-				}
-		}
+		for( s in sel )
+			s.dom.toggleClass(name,state);
 		return this;
 	}
 
@@ -471,7 +393,6 @@ class JQuery {
 		for( s in sel ) {
 			var d = (show != null ? show : s.getStyle("display") == "none") ? "" : "none";
 			s.setStyle("display", d);
-			send(SetStyle(s.id, "display", d));
 		}
 		return this;
 	}
@@ -486,7 +407,7 @@ class JQuery {
 
 	public function empty() {
 		for( s in sel )
-			s.reset();
+			s.clear();
 	}
 
 	public function index( jq : JQuery ) {
