@@ -15,10 +15,10 @@
  */
 package hltml;
 
-class DomClassList {
-	var dom : Dom;
-	public function new(dom) {
-		this.dom = dom;
+class ElementClassList {
+	var elt : Element;
+	public function new(elt) {
+		this.elt = elt;
 	}
 	public function add( cl : String ) {
 	}
@@ -30,11 +30,11 @@ class DomClassList {
 
 @:allow(hltml.JQuery)
 @:allow(hltml.Query)
-@:allow(hltml.Client)
-class Dom {
+@:allow(hltml.Window)
+class Element {
 
 	static var UID = 0;
-	static var client(get,never) : Client;
+	static var window(get,never) : Window;
 
 	public var nodeName(default, null) : String;
 	public var nodeValue(default, null) : String;
@@ -42,16 +42,16 @@ class Dom {
 	var id : Int;
 	var attributes : Array<{ name : String, value : String }>;
 	var classes : Array<String>;
-	var parent(default,set) : Null<Dom>;
-	var childs : Array<Dom>;
+	var parent(default,set) : Null<Element>;
+	var childs : Array<Element>;
 	var events : Array<{ id : Int, name : String, callb : Event -> Void }>;
 	var style : Array<{ name : String, value : String }>;
 	var clientID(default, set) : String;
-	public var parentElement(get,never) : Dom;
+	public var parentElement(get,never) : Element;
 
 	public function new() {
 		id = UID++;
-		@:privateAccess client.doms.set(id, this);
+		@:privateAccess window.elements.set(id, this);
 		events = [];
 		attributes = [];
 		classes = [];
@@ -59,35 +59,35 @@ class Dom {
 		style = [];
 	}
 
-	static inline function get_client() return @:privateAccess Client.inst;
+	static inline function get_window() return @:privateAccess Window.inst;
 
 	inline function get_numChildren() return childs.length;
 	inline function get_parentElement() return parent;
 
 	inline function send(msg) {
-		if( id >= 0 ) client.send(msg);
+		if( id >= 0 ) window.send(msg);
 	}
 
-	@:access(hltml.Client)
+	@:access(hltml.Window)
 	function set_clientID(id) {
 		if( clientID != null ) {
-			var ids = client.byIdMap.get(clientID);
+			var ids = window.byIdMap.get(clientID);
 			ids.remove(this);
-			if( ids.length == 0 ) client.byIdMap.remove(clientID);
+			if( ids.length == 0 ) window.byIdMap.remove(clientID);
 		}
 		clientID = id;
 		if( id != null ) {
-			var ids = client.byIdMap.get(id);
+			var ids = window.byIdMap.get(id);
 			if( ids == null ) {
 				ids = [];
-				client.byIdMap.set(id, ids);
+				window.byIdMap.set(id, ids);
 			}
 			ids.push(this);
 		}
 		return id;
 	}
 
-	function set_parent(p:Dom) {
+	function set_parent(p:Element) {
 
 		var pchck = p;
 		while( pchck != null ) {
@@ -127,7 +127,7 @@ class Dom {
 		if( id < 0 ) return;
 		parent = null;
 		if( nodeName != null ) nodeValue = "";
-		@:privateAccess client.doms.remove(id);
+		@:privateAccess window.elements.remove(id);
 		send(Dispose(id, events.length == 0 ? null : [for( e in events ) e.id]));
 		id = -12345678;
 		if( events.length > 0 ) events = [];
@@ -164,7 +164,7 @@ class Dom {
 	}
 
 	function bindEvent( event : String, callb : Event -> Void ) {
-		var eid = client.allocEvent(callb);
+		var eid = window.allocEvent(callb);
 		events.push( { id : eid, name : event, callb : callb } );
 		send(Event(id, event, eid));
 	}
@@ -232,7 +232,7 @@ class Dom {
 
 	function onStage() {
 		var p = this;
-		var root = client.getRoot();
+		var root = window.getRoot();
 		while( p != null ) {
 			if( p == root ) return true;
 			p = p.parent;
@@ -276,7 +276,7 @@ class Dom {
 
 	// ---- HTML API ---
 
-	public var classList(get,null) : DomClassList;
+	public var classList(get,null) : ElementClassList;
 	public var className(get,set) : String;
 	public var innerHTML(never,set) : String;
 	public var innerText(get,set) : String;
@@ -293,7 +293,7 @@ class Dom {
 
 	function get_classList() {
 		if( classList == null )
-			classList = new DomClassList(this);
+			classList = new ElementClassList(this);
 		return classList;
 	}
 
@@ -322,7 +322,7 @@ class Dom {
 	public function removeAttribute( str : String ) {
 	}
 
-	public function appendChild( e : Dom ) {
+	public function appendChild( e : Element ) {
 	}
 
 	function set_innerHTML(v:String) {
@@ -360,14 +360,14 @@ class Dom {
 
 	public static function createHTML( str : String ) {
 		if( ~/^<[A-Za-z]+>$/.match(str) )
-			return client.createDom(str.substr(1,str.length-2));
+			return window.createElement(str.substr(1,str.length-2));
 		if( str.charCodeAt(str.length-1) == ">".code && str.charCodeAt(str.length-2) == '"'.code )
 			str = str.substr(0,str.length-1)+"/>";
 		var x = try Xml.parse(str) catch( e : Dynamic ) throw "Invalid XML "+str;
 		return createXML(x, null);
 	}
 
-	static function createXML( x : Xml, parent : Dom ) {
+	static function createXML( x : Xml, parent : Element ) {
 		switch( x.nodeType ) {
 		case Document:
 			var d = null;
@@ -375,24 +375,24 @@ class Dom {
 				d = createXML(x, parent);
 			return d;
 		case Element:
-			var d = new Dom();
-			d.nodeName = x.nodeName;
+			var e = new Element();
+			e.nodeName = x.nodeName;
 			for( a in x.attributes() )
-				d.setAttr(a, x.get(a));
-			client.send(Create(d.id, d.nodeName, d.attributes));
+				e.setAttr(a, x.get(a));
+			window.send(Create(e.id, e.nodeName, e.attributes));
 			if( parent != null ) {
-				d.parent = parent;
-				client.send(Append(d.id, parent.id));
+				e.parent = parent;
+				window.send(Append(e.id, parent.id));
 			}
 			for( x in x )
-				createXML(x, d);
-			return d;
+				createXML(x, e);
+			return e;
 		case PCData, CData:
-			var d = new Dom();
-			d.nodeValue = x.nodeValue;
-			d.parent = parent;
-			client.send(CreateText(d.id, d.nodeValue, parent == null ? -1 : parent.id));
-			return d;
+			var e = new Element();
+			e.nodeValue = x.nodeValue;
+			e.parent = parent;
+			window.send(CreateText(e.id, e.nodeValue, parent == null ? -1 : parent.id));
+			return e;
 		case ProcessingInstruction, DocType, Comment:
 			// nothing
 			return null;

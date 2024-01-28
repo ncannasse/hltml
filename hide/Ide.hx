@@ -4,7 +4,7 @@ class Ide extends hide.tools.IdeData {
 
 	public var localStorage = new hltml.Storage();
 
-	var client : hltml.DomkitClient;
+	var window : hltml.Window;
 
 	public function start() {
 		var cwd = Sys.getCwd();
@@ -12,10 +12,10 @@ class Ide extends hide.tools.IdeData {
 		initConfig(cwd);
 		setProject(cwd);
 		loadDatabase();
-		client = new hltml.DomkitClient();
-		client.onReady = function() {
+		window = new hltml.Window();
+		window.onReady = function() {
 			var view = new hide.view.CdbTable();
-			@:privateAccess view.element = new Element(client.getRoot());
+			@:privateAccess view.element = new Element(window.getRoot());
 			view.rebuild();
 		}
 	}
@@ -36,7 +36,7 @@ class Ide extends hide.tools.IdeData {
 	}
 
 	public function createElement( kind : String ) : Element.HTMLElement {
-		return client.createDom(kind);
+		return window.createElement(kind);
 	}
 
 	public function setClipboard( str : String ) {

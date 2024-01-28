@@ -81,14 +81,14 @@ class Query {
 		return s.toString();
 	}
 
-	public function match( d : Dom ) {
+	public function match( e : Element ) {
 
-		if( name != null && d.nodeName != name )
+		if( name != null && e.nodeName != name )
 			return false;
 
 		if( id != null ) {
 			var ok = false;
-			for( a in d.attributes )
+			for( a in e.attributes )
 				if( a.name == "id" && a.value == id ) {
 					ok = true;
 					break;
@@ -97,13 +97,13 @@ class Query {
 		}
 		if( classes != null ) {
 			for( c in classes ) {
-				if( d.classes.indexOf(c) < 0 )
+				if( e.classes.indexOf(c) < 0 )
 					return false;
 			}
 		}
 		if( attrib != null ) {
 			var found = false;
-			for( a in d.attributes )
+			for( a in e.attributes )
 				if( a.name == attrib.name ) {
 					found = a.value == attrib.value;
 					break;

@@ -17,7 +17,7 @@ package hltml;
 
 @:keep class Event {
 
-	public var target : Dom;
+	public var target : Element;
 	public var value : Dynamic;
 	public var keyCode : Int;
 	public var which : Int;

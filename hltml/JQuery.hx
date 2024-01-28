@@ -33,29 +33,29 @@ abstract AttributeValue(Dynamic) from Int from String {
 
 class JQuery {
 
-	var sel : Array<Dom>;
+	var sel : Array<Element>;
 	var strPayload : String;
 	public var length(get, never) : Int;
 
-	public function new(?elt:Dom,?query:String) {
+	public function new(?elt:Element,?query:String) {
 		if( elt != null )
 			sel = [elt];
 		else if( query == null ) {
 			sel = [];
 		} else if( query.charCodeAt(0) == "<".code ) {
-			var dom = Dom.createHTML(query);
+			var dom = Element.createHTML(query);
 			sel = dom == null ? [] : [dom];
 		} else {
 			sel = [];
 			var r = new Query(query);
-			var client = @:privateAccess Client.inst;
+			var window = @:privateAccess Window.inst;
 			if( r.id != null ) {
-				var ids = @:privateAccess client.byIdMap.get(r.id);
+				var ids = @:privateAccess window.byIdMap.get(r.id);
 				if( ids != null )
 					for( d in ids )
 						addRec(r, d);
 			} else
-				addRec(r, @:privateAccess client.root);
+				addRec(r, @:privateAccess window.root);
 		}
 	}
 
@@ -63,7 +63,7 @@ class JQuery {
 		return sel.length;
 	}
 
-	public function query( ?elt : Dom, ?query : String ) {
+	public function query( ?elt : Element, ?query : String ) {
 		return new JQuery(elt, query);
 	}
 
@@ -89,10 +89,10 @@ class JQuery {
 	public function text( t : String ) {
 		for( s in sel ) {
 			s.reset();
-			var d = new Dom();
-			d.nodeValue = t;
-			d.parent = s;
-			send(CreateText(d.id, t, s.id));
+			var e = new Element();
+			e.nodeValue = t;
+			e.parent = s;
+			send(CreateText(e.id, t, s.id));
 		}
 		return this;
 	}
@@ -101,7 +101,7 @@ class JQuery {
 		var x = try Xml.parse(html) catch( e : Dynamic ) throw "Failed to parse " + html + "(" + e+")";
 		for( s in sel ) {
 			s.reset();
-			Dom.createXML(x,s);
+			Element.createXML(x,s);
 		}
 		return this;
 	}
@@ -189,10 +189,10 @@ class JQuery {
 		for( s in sel ) {
 			var id : Null<Int> = null;
 			if( result != null ) {
-				var client = @:privateAccess Client.inst;
-				id = client.allocEvent(function(e) {
+				var window = @:privateAccess Window.inst;
+				id = window.allocEvent(function(e) {
 					if( result(e.value) ) {
-						@:privateAccess client.events.remove(id);
+						@:privateAccess window.events.remove(id);
 						send(Unbind([id]));
 					}
 				});
@@ -292,11 +292,11 @@ class JQuery {
 		return j;
 	}
 
-	function addRec( q : Query, d : Dom ) {
-		if( q.match(d) )
-			sel.push(d);
-		for( d in d.childs )
-			addRec(q, d);
+	function addRec( q : Query, e : Element ) {
+		if( q.match(e) )
+			sel.push(e);
+		for( e in e.childs )
+			addRec(q, e);
 	}
 
 	public function append( j : JQuery ) {
@@ -355,7 +355,7 @@ class JQuery {
 	}
 
 	inline function send( msg : Message ) {
-		@:privateAccess Client.inst.send(msg);
+		@:privateAccess Window.inst.send(msg);
 	}
 
 	public function attr( a : String, ?val : AttributeValue ) : JQueryOrString {
