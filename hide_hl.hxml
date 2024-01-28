@@ -18,3 +18,5 @@
 --remap nw:unsupported
 --main hide.Ide
 -D no-deprecation-warnings
+--macro hltml.Components.init()
+

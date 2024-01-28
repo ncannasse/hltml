@@ -15,8 +15,7 @@
  */
 package hltml;
 
-class HTMLElement extends h2d.Flow implements h2d.domkit.Object {
-}
+import hltml.Components;
 
 class ElementClassList {
 	var elt : Element;
@@ -40,10 +39,11 @@ class Element {
 	public var nodeName(default, null) : String;
 	public var nodeValue(default, null) : String;
 	public var numChildren(get, never) : Int;
-	var element : HTMLElement;
-	var attributes : Array<{ name : String, value : String }> = [];
+	var element : HtmlElement;
 	var parent(default,set) : Null<Element>;
 	var children : Array<Element> = [];
+	var attributes : Array<{ name : String, value : String }> = [];
+	var data : Array<{ name : String, value : Dynamic }>;
 	var clientID(default, set) : String;
 	var dom(get,never) : domkit.Properties<h2d.Object>;
 	public var parentElement(get,never) : Element;
@@ -120,10 +120,20 @@ class Element {
 		}
 	}
 
-	function bindEvent( event : String, callb : Event -> Void ) {
+	function mkEvent( e : hxd.Event ) : hltml.Event {
+		var ev = new Event();
+		ev.target = this;
+		return ev;
 	}
 
-	function unbindEvent( name : String ) {
+	function bindEvent( event : String, callb : Event -> Void ) {
+		element.enableInteractive = true;
+		if( element.events == null ) element.events = new Map();
+		element.events.set(event, callb);
+	}
+
+	function unbindEvent( event : String ) {
+		element.events.remove(event);
 	}
 
 	public function getAttr( name : String ) {
@@ -133,7 +143,16 @@ class Element {
 		return null;
 	}
 
-	static var unknownAttrs : Map<String,Bool> = [];
+	static var unknowns : Map<String,Bool> = [];
+	static function unknown( type, name, ?value ) {
+		if( !unknowns.exists(type+"."+name) ) {
+			unknowns.set(type+"."+name, true);
+			trace("Unknown "+type+" "+name+(value == null ? "" : "="+value));
+		}
+	}
+	static function unsupported( ?pos : haxe.PosInfos ) {
+		unknown("implementation", pos.methodName);
+	}
 
 	function setAttr( name : String, value : String ) {
 		var found = false;
@@ -156,11 +175,10 @@ class Element {
 			dom.setClasses(value);
 		case "href" if( value == "#" ):
 			// ignore
+		case "index", "tabindex":
+			// ignore
 		default:
-			if( !unknownAttrs.exists(name) ) {
-				unknownAttrs.set(name, true);
-				trace("Unknown attribute "+name+"="+value);
-			}
+			unknown("Attribute", name, value);
 		}
 	}
 
@@ -262,12 +280,16 @@ class Element {
 	}
 
 	function set_title(v:String) {
-		// TODO
+		setAttr("title", v);
 		return v;
 	}
 
+	public function scrollIntoViewIfNeeded() {
+		unsupported();
+	}
+
 	public function click() {
-		throw "TODO";
+		element.triggerEvent("click", new hxd.Event(ERelease,0,0));
 	}
 
 	public static function createHTML( str : String ) {
@@ -315,7 +337,16 @@ class Element {
 	public static function create( name : String ) {
 		var e = new Element();
 		e.nodeName = name;
-		e.element = new HTMLElement();
+		if( name == "input" )
+			name = "html-input";
+		var comp = domkit.Component.get(name, true);
+		if( comp != null )
+			e.element = comp.make([], null);
+		else {
+			unknown("Component", name);
+			e.element = new HtmlElement();
+		}
+		@:privateAccess e.element.element = e;
 		return e;
 	}
 

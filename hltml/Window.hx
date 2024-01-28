@@ -22,20 +22,44 @@ class Window extends hxd.App {
 	var nodes : Map<Int,h2d.Object> = [];
 	var byIdMap : Map<String, Array<Element>> = [];
 	var root : hltml.Element;
+	var style : h2d.domkit.Style;
+	var debug : Bool;
+	var css : Map<String,hxd.res.Resource> = [];
 
-	public function new() {
+	public function new(debug) {
 		inst = this;
+		this.debug = debug;
 		super();
+		style = new h2d.domkit.Style();
+		style.allowInspect = debug;
 	}
 
 	public function getRoot() {
 		return root;
 	}
 
+	public function loadCSS( path : String ) {
+		var res = css.get(path);
+		var prev = res != null;
+		if( res != null )
+			style.unload(res);
+		var res = hxd.res.Any.fromBytes(path,sys.io.File.getBytes(path));
+		css.set(path, res);
+		style.load(res);
+		if( prev )
+			@:privateAccess style.onChange(); // trigger warnings
+	}
+
 	override function init() {
 		root = hltml.Element.create("div");
 		s2d.addChild(root.element);
+		style.addObject(root.element);
 		onReady();
+	}
+
+
+	override function update(dt:Float) {
+		style.sync(dt);
 	}
 
 	public dynamic function onReady() {

@@ -33,6 +33,9 @@ abstract JQueryOrString(JQuery) from JQuery to JQuery {
 abstract AttributeValue(Dynamic) from Int from String {
 }
 
+abstract DataValue(Dynamic) from Int from String to Int to String {
+}
+
 class JQuery {
 
 	var sel : Array<Element>;
@@ -292,8 +295,29 @@ class JQuery {
 	}
 
 	public function data( tag : String, ?value : Dynamic ) : Dynamic {
-		trace("TODO");
-		return null;
+		var element = sel[0];
+		if( element == null )
+			return value == null ? this : null;
+		if( value == null ) {
+			if( element.data == null )
+				return null;
+			for( d in element.data )
+				if( d.name == tag )
+					return d.value;
+			return null;
+		} else {
+			if( element.data == null )
+				element.data = [];
+			var found = false;
+			for( d in element.data )
+				if( d.name == tag ) {
+					d.value = value;
+					found = true;
+				}
+			if( !found )
+				element.data.push({ name : tag, value : value });
+			return this;
+		}
 	}
 
 	public function insertAfter( j : JQuery ) {

@@ -1,0 +1,59 @@
+
+div {
+	content-align : top;
+}
+
+table {
+	layout : vertical;
+}
+
+tbody {
+	layout : vertical;
+}
+
+.cdb-view {
+	fill-width : true;
+	fill-height : true;
+	.cdb {
+		td, th {
+			width : 200;
+			padding : 3;
+			overflow: hidden;
+		}
+	}
+}
+
+.hide-tabs {
+	fill-width : true;
+	fill-height : true;
+	layout : vertical;
+	.tabs-header {
+		background: #333;
+		.cat {
+			min-width : 50;
+			padding : 3 10;
+			content-align : middle middle;
+			html-text {
+				offset-y : -2;
+			}
+			cursor : button;
+			&.active {
+				background: #555;
+			}
+			&:hover {
+				background: #444;
+			}
+		}
+	}
+	> .tab {
+		fill-width : true;
+		fill-height : true;
+		content-align : top;
+	}
+}
+
+.hide-scroll {
+	fill-width : true;
+	fill-height : true;
+	overflow : scroll;
+}

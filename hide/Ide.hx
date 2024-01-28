@@ -2,17 +2,26 @@ package hide;
 
 class Ide extends hide.tools.IdeData {
 
+	static var DEBUG_PATH = "d:/projects/northgard";
+
 	public var localStorage = new hltml.Storage();
 
 	var window : hltml.Window;
 
 	public function start() {
 		var cwd = Sys.getCwd();
-		cwd = "d:/projects/northgard";
-		initConfig(cwd);
-		setProject(cwd);
+		var prj = cwd;
+		if( DEBUG_PATH != null )
+			prj = DEBUG_PATH;
+		initConfig(prj);
+		setProject(prj);
 		loadDatabase();
-		window = new hltml.Window();
+		window = new hltml.Window(DEBUG_PATH != null);
+		var css = cwd+"style.css";
+		window.loadCSS(css);
+		fileWatcher.register(css, function() {
+			window.loadCSS(css);
+		});
 		window.onReady = function() {
 			var view = new hide.view.CdbTable();
 			@:privateAccess view.element = new Element(window.getRoot());
